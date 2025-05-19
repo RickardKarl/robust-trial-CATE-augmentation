@@ -1,8 +1,6 @@
 # Description
 
-Official implementation for paper "Robust estimation of heterogeneous treatment effects in randomized trials leveraging external data"
-
-- Our methods are found n src/randomization_aware and baselines are found in src/baselines
+Official implementation for paper **"Robust estimation of heterogeneous treatment effects in randomized trials leveraging external data"**
 
 ## Directory Structure
 
