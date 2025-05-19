@@ -21,5 +21,5 @@ To reproduce the results from the paper:
    pip install -r requirements.txt
    ```
 
-2. The script run.py was used to produce the results in Table 1 of the paper:
+2. The script run.py was used to produce the results in Table 1 of the paper.
 3. Jupyter notebooks in the notebooks/ directory were used to generate the results shown in the subfigures of Figure 1.
