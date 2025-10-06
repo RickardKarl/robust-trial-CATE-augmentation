@@ -12,7 +12,9 @@ def _to_categorical(X):
     return pd.get_dummies(pd.DataFrame(X.astype(str)), dummy_na=True).values.astype(int)
 
 
-def preprocess_star_dataset(star_data: pd.DataFrame, cat_covar_columns: list):
+def preprocess_star_dataset(
+    star_data: pd.DataFrame, cat_covar_columns: list, target_label: str
+):
 
     # Following Kallus et al.
     # _confounding_covar = "g1surban"
@@ -58,7 +60,12 @@ def preprocess_star_dataset(star_data: pd.DataFrame, cat_covar_columns: list):
     Y_urban = Y_all[urban_filter]
 
     _propensity_score = np.mean(T_all)
-    _mean_outcome = np.mean(Y_rural)
+    if target_label == "rural":
+        _mean_outcome = np.mean(Y_rural)
+    elif target_label == "urban":
+        _mean_outcome = np.mean(Y_urban)
+    else:
+        raise ValueError(f"Invalid target_label: {target_label}")
 
     return (
         X_rural,
@@ -72,15 +79,15 @@ def preprocess_star_dataset(star_data: pd.DataFrame, cat_covar_columns: list):
     )
 
 
-def _generate_rct_obs(
+def _generate_target_ext(
     X_rural,
     Y_rural,
     T_rural,
     X_urban,
     Y_urban,
     T_urban,
-    rct_fraction_of_rural=0.5,
-    eval_fraction_of_rct=0.4,
+    target_fraction_of_main_loc=0.5,
+    eval_fraction_of_target=0.4,
 ):
 
     X_urban_control = X_urban[T_urban == 0]
@@ -89,91 +96,124 @@ def _generate_rct_obs(
     Y_urban_control = Y_urban[T_urban == 0]
     Y_urban_treated = Y_urban[T_urban == 1]
 
-    X_rct, X_rural_not_RCT, Y_rct, Y_rural_not_RCT, T_rct, T_rural_not_rct = (
-        train_test_split(X_rural, Y_rural, T_rural, test_size=1 - rct_fraction_of_rural)
-    )
+    if 0.0 < target_fraction_of_main_loc < 1.0:
+
+        (
+            X_target,
+            X_rural_not_target,
+            Y_target,
+            Y_rural_not_target,
+            T_target,
+            T_rural_not_target,
+        ) = train_test_split(
+            X_rural, Y_rural, T_rural, test_size=1 - target_fraction_of_main_loc
+        )
+
+    elif target_fraction_of_main_loc == 1.0:
+        X_target = X_rural
+        Y_target = Y_rural
+        T_target = T_rural
+        # empty arrays with the correct shapes
+        X_rural_not_target = np.empty((0, X_rural.shape[1]))
+        Y_rural_not_target = np.empty((0,))
+        T_rural_not_target = np.empty((0,))
+    else:
+        raise ValueError(
+            f"Invalid value for target_fraction_of_main_loc, but be in range (0,1] but got {target_fraction_of_main_loc}"
+        )
 
     (
-        X_rct,
-        X_rct_eval,
-        Y_rct,
-        Y_rct_eval,
-        T_rct,
-        T_rct_eval,
+        X_target,
+        X_target_eval,
+        Y_target,
+        Y_target_eval,
+        T_target,
+        T_target_eval,
     ) = train_test_split(
-        X_rct,
-        Y_rct,
-        T_rct,
-        test_size=eval_fraction_of_rct,
+        X_target,
+        Y_target,
+        T_target,
+        test_size=eval_fraction_of_target,
     )
 
-    X_notrct = np.vstack((X_rural_not_RCT, X_urban))
-    Y_notrct = np.hstack((Y_rural_not_RCT, Y_urban))
-    T_notrct = np.hstack((T_rural_not_rct, T_urban))
+    X_nottarget = np.vstack((X_rural_not_target, X_urban))
+    Y_nottarget = np.hstack((Y_rural_not_target, Y_urban))
+    T_nottarget = np.hstack((T_rural_not_target, T_urban))
     _local_rural_filter = np.array(
-        [True] * X_rural_not_RCT.shape[0] + [False] * X_urban.shape[0]
+        [True] * X_rural_not_target.shape[0] + [False] * X_urban.shape[0]
     ).ravel()
-    assert _local_rural_filter.shape == Y_notrct.shape
+    assert _local_rural_filter.shape == Y_nottarget.shape
 
-    X_notrct_rural = X_notrct[_local_rural_filter]
-    Y_notrct_rural = Y_notrct[_local_rural_filter]
-    T_notrct_rural = T_notrct[_local_rural_filter]
-
-    # checked
-    X_notrct_rural_treated = X_notrct_rural[T_notrct_rural == 1]
-    X_notrct_rural_control = X_notrct_rural[T_notrct_rural == 0]
+    X_nottarget_rural = X_nottarget[_local_rural_filter]
+    Y_nottarget_rural = Y_nottarget[_local_rural_filter]
+    T_nottarget_rural = T_nottarget[_local_rural_filter]
 
     # checked
-    Y_notrct_rural_treated = Y_notrct_rural[T_notrct_rural == 1]
-    Y_notrct_rural_control = Y_notrct_rural[T_notrct_rural == 0]
+    X_nottarget_rural_treated = X_nottarget_rural[T_nottarget_rural == 1]
+    X_nottarget_rural_control = X_nottarget_rural[T_nottarget_rural == 0]
+
+    # checked
+    Y_nottarget_rural_treated = Y_nottarget_rural[T_nottarget_rural == 1]
+    Y_nottarget_rural_control = Y_nottarget_rural[T_nottarget_rural == 0]
 
     # OUTCOME BASED REMOVAL
-    _treated_rural_filter = Y_notrct_rural_treated < np.median(Y_notrct_rural_treated)
-    _treated_urban_filter = Y_urban_treated < np.median(Y_urban[T_urban == 1])
+    # _treated_rural_filter = Y_nottarget_rural_treated < np.median(Y_nottarget_rural_treated)
+    # _treated_urban_filter = Y_urban_treated < np.median(Y_urban[T_urban == 1])
+    _treated_rural_filter = np.ones(len(Y_nottarget_rural_treated), dtype=np.bool)
+    _treated_urban_filter = np.ones(len(Y_urban_treated), dtype=np.bool)
 
     # remove large samples.
-    X_obs_treated_rural = X_notrct_rural_treated[_treated_rural_filter, :]
-    Y_obs_treated_rural = Y_notrct_rural_treated[_treated_rural_filter]
+    X_ext_treated_rural = X_nottarget_rural_treated[_treated_rural_filter, :]
+    Y_ext_treated_rural = Y_nottarget_rural_treated[_treated_rural_filter]
 
-    X_obs_treated_urban = X_urban_treated[_treated_urban_filter, :]
-    Y_obs_treated_urban = Y_urban_treated[_treated_urban_filter]
-
-    assert X_obs_treated_rural.shape[0] == Y_obs_treated_rural.shape[0]
+    X_ext_treated_urban = X_urban_treated[_treated_urban_filter, :]
+    Y_ext_treated_urban = Y_urban_treated[_treated_urban_filter]
+    assert X_ext_treated_rural.shape[0] == Y_ext_treated_rural.shape[0]
 
     # checked
-    X_obs = np.vstack(
+    X_ext = np.vstack(
         (
-            X_obs_treated_rural,
-            X_obs_treated_urban,
-            X_notrct_rural_control,
+            X_ext_treated_rural,
+            X_ext_treated_urban,
+            X_nottarget_rural_control,
             X_urban_control,
         )
     )
 
     # checked
-    Y_obs = np.vstack(
+    Y_ext = np.vstack(
         (
-            Y_obs_treated_rural.reshape(-1, 1),
-            Y_obs_treated_urban.reshape(-1, 1),
-            Y_notrct_rural_control.reshape(-1, 1),
+            Y_ext_treated_rural.reshape(-1, 1),
+            Y_ext_treated_urban.reshape(-1, 1),
+            Y_nottarget_rural_control.reshape(-1, 1),
             Y_urban_control.reshape(-1, 1),
         )
     ).ravel()
 
     # checked
-    T_obs = np.array(
-        [1] * int(Y_obs_treated_rural.shape[0] + Y_obs_treated_urban.shape[0])
-        + [0] * int(Y_notrct_rural_control.shape[0] + Y_urban_control.shape[0])
+    T_ext = np.array(
+        [1] * int(Y_ext_treated_rural.shape[0] + Y_ext_treated_urban.shape[0])
+        + [0] * int(Y_nottarget_rural_control.shape[0] + Y_urban_control.shape[0])
     )
 
-    assert Y_rct_eval.shape == T_rct_eval.shape
-    assert Y_rct.shape == T_rct.shape
-    assert Y_obs.shape == Y_obs.shape
-    assert X_rct.shape[0] == T_rct.shape[0]
-    assert X_obs.shape[0] == T_obs.shape[0]
-    assert X_rct_eval.shape[0] == T_rct_eval.shape[0]
+    assert Y_target_eval.shape == T_target_eval.shape
+    assert Y_target.shape == T_target.shape
+    assert Y_ext.shape == Y_ext.shape
+    assert X_target.shape[0] == T_target.shape[0]
+    assert X_ext.shape[0] == T_ext.shape[0]
+    assert X_target_eval.shape[0] == T_target_eval.shape[0]
 
-    return X_rct, Y_rct, T_rct, X_obs, Y_obs, T_obs, X_rct_eval, Y_rct_eval, T_rct_eval
+    return (
+        X_target,
+        Y_target,
+        T_target,
+        X_ext,
+        Y_ext,
+        T_ext,
+        X_target_eval,
+        Y_target_eval,
+        T_target_eval,
+    )
 
 
 def ite_adjusted_outcome(Y, T, _propensity, c):
@@ -192,7 +232,7 @@ class STARDataset:
         self,
         data_path: str,
         cat_covar_columns=[
-            "g1surban", #confounder, will be dropped in experiment
+            "g1surban",  # confounder, will be dropped in experiment
             "gender",
             "race",
             "birthmonth",
@@ -202,9 +242,12 @@ class STARDataset:
             "g1tchid",
             "g1freelunch",
         ],
+        target_label="rural",
     ):
 
         self.data_path = data_path
+        assert target_label in ["rural", "urban"]
+        self.target_label = target_label
 
         # pre-process data
         star_data = pd.read_csv(self.data_path)
@@ -218,7 +261,7 @@ class STARDataset:
             self.Y_urban,
             self._propensity_score,
             self._mean_outcome,
-        ) = preprocess_star_dataset(star_data, cat_covar_columns)
+        ) = preprocess_star_dataset(star_data, cat_covar_columns, target_label)
 
     def get_propensity_score(self):
         return self._propensity_score
@@ -227,41 +270,71 @@ class STARDataset:
         self,
         n1: int,
         n0: int,
-        rct_fraction_of_rural: float = 0.5,
-        eval_fraction_of_rct: float = 0.5,
+        target_fraction_of_main_loc: float = 0.5,
+        eval_fraction_of_target: float = 0.5,
     ):
 
-        X_rct, Y_rct, T_rct, X_obs, Y_obs, T_obs, X_eval, Y_eval, T_eval = (
-            _generate_rct_obs(
+        if self.target_label == "rural":
+            (
+                X_target,
+                Y_target,
+                T_target,
+                X_ext,
+                Y_ext,
+                T_ext,
+                X_eval,
+                Y_eval,
+                T_eval,
+            ) = _generate_target_ext(
                 self.X_rural,
                 self.Y_rural,
                 self.T_rural,
                 self.X_urban,
                 self.Y_urban,
                 self.T_urban,
-                rct_fraction_of_rural=rct_fraction_of_rural,
-                eval_fraction_of_rct=eval_fraction_of_rct,
+                target_fraction_of_main_loc=target_fraction_of_main_loc,
+                eval_fraction_of_target=eval_fraction_of_target,
             )
-        )
+        else:
+            (
+                X_target,
+                Y_target,
+                T_target,
+                X_ext,
+                Y_ext,
+                T_ext,
+                X_eval,
+                Y_eval,
+                T_eval,
+            ) = _generate_target_ext(
+                self.X_urban,
+                self.Y_urban,
+                self.T_urban,
+                self.X_rural,
+                self.Y_rural,
+                self.T_rural,
+                target_fraction_of_main_loc=target_fraction_of_main_loc,
+                eval_fraction_of_target=eval_fraction_of_target,
+            )
 
-        # subsample randomly n1 rows from X_rct, Y_rct, T_rct (without replacement)
-        rct_indices = np.random.choice(X_rct.shape[0], n1, replace=False)
-        X_rct = X_rct[rct_indices]
-        Y_rct = Y_rct[rct_indices]
-        T_rct = T_rct[rct_indices]
+        # subsample randomly n1 rows from X_target, Y_target, T_target (without replacement)
+        target_indices = np.random.choice(X_target.shape[0], n1, replace=False)
+        X_target = X_target[target_indices]
+        Y_target = Y_target[target_indices]
+        T_target = T_target[target_indices]
 
-        # subsample randomly n0 rows from X_obs, Y_obs, T_obs (without replacement)
-        obs_indices = np.random.choice(X_obs.shape[0], n0, replace=False)
-        X_obs = X_obs[obs_indices]
-        Y_obs = Y_obs[obs_indices]
-        T_obs = T_obs[obs_indices]
+        # subsample randomly n0 rows from X_ext, Y_ext, T_ext (without replacement)
+        ext_indices = np.random.choice(X_ext.shape[0], n0, replace=False)
+        X_ext = X_ext[ext_indices]
+        Y_ext = Y_ext[ext_indices]
+        T_ext = T_ext[ext_indices]
 
-        X_train = np.row_stack([X_rct, X_obs])
+        X_train = np.row_stack([X_target, X_ext])
         S_train = np.row_stack(
-            [np.ones((T_rct.shape[0], 1)), np.zeros((T_obs.shape[0], 1))]
+            [np.ones((T_target.shape[0], 1)), np.zeros((T_ext.shape[0], 1))]
         )
-        A_train = np.row_stack([T_rct.reshape(-1, 1), T_obs.reshape(-1, 1)])
-        Y_train = np.row_stack([Y_rct.reshape(-1, 1), Y_obs.reshape(-1, 1)])
+        A_train = np.row_stack([T_target.reshape(-1, 1), T_ext.reshape(-1, 1)])
+        Y_train = np.row_stack([Y_target.reshape(-1, 1), Y_ext.reshape(-1, 1)])
 
         gt_adjusted_ite_eval = ite_adjusted_outcome(
             Y_eval,

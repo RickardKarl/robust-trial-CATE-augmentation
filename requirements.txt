@@ -57,6 +57,7 @@ protobuf
 psutil
 ptyprocess
 pure_eval
+pybnesian
 pydantic
 pydantic_core
 Pygments
