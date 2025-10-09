@@ -44,6 +44,12 @@ available_methods = [
     "PoolingNonlinear_T",
     "KSPNonlinear_T",
     "KSPNonlinear_DR",
+    "OSCARLinear",
+    "OSCARMixed",
+    "OSCARNonlinear",
+    "ROSCARLinear",
+    "ROSCARMixed",
+    "ROSCARNonlinear",
     "DM",
 ]
 
@@ -175,7 +181,7 @@ def run_experiment(n_trial, n_obs, n_features, misspecification, i):
         try:
             best_lambda = estimator.get_lambda()
         except AttributeError:
-            best_lambda = {"lambda_control": np.NaN, "lambda_treated": np.NaN}
+            best_lambda = {"lambda_control": np.nan, "lambda_treated": np.nan}
 
         metrics = {
             "iter": i,

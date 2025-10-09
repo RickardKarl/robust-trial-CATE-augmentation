@@ -1,5 +1,5 @@
 import numpy as np
-from sklearn.base import BaseEstimator, clone
+from sklearn.base import BaseEstimator
 from sklearn.linear_model import LinearRegression, LogisticRegressionCV
 
 

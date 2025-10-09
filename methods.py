@@ -1,4 +1,4 @@
-from sklearn.linear_model import LinearRegression, LogisticRegressionCV
+from sklearn.linear_model import LinearRegression, LogisticRegressionCV, RidgeCV
 from sklearn.ensemble import HistGradientBoostingRegressor
 
 
@@ -12,7 +12,7 @@ from src.randomization_aware.learners import (
     CombinedLearner,
 )
 from src.randomization_aware.combine_cate import CATECombiner
-from src.baselines.asaiee import AsaieeCATE
+from src.baselines.asaiee import AsaieeCATE, OSCARCATE, ROSCARCATE
 from src.baselines.trial_only import TrialCATE
 from src.baselines.pooling import TLearnerPooling
 from src.baselines.ksp import KSPCATE
@@ -119,6 +119,26 @@ def get_asaiee_linear(n_crossfit_folds):
     )
 
 
+def get_oscar_linear(n_crossfit_folds):
+    return OSCARCATE(
+        propensity_score=propensity_score,
+        regressor_control=LinearRegression(),
+        regressor_treated=LinearRegression(),
+        bias_function=RidgeCV(),
+    )
+
+
+def get_roscar_linear(n_crossfit_folds):
+    return ROSCARCATE(
+        propensity_score=propensity_score,
+        regressor_control=LinearRegression(),
+        regressor_treated=LinearRegression(),
+        bias_function_outcome=RidgeCV(),
+        bias_function_cate=RidgeCV(),
+        crossfit_folds=n_crossfit_folds,
+    )
+
+
 ########################
 # Models with parametric CATE model and nonparametric nuisance models
 ########################
@@ -168,6 +188,26 @@ def get_asaiee_mixed(n_crossfit_folds):
         regressor_cate=LinearRegression(),
         regressor_control=nonlinear_regressor(),
         regressor_treated=nonlinear_regressor(),
+        crossfit_folds=n_crossfit_folds,
+    )
+
+
+def get_oscar_mixed(n_crossfit_folds):
+    return OSCARCATE(
+        propensity_score=propensity_score,
+        regressor_control=nonlinear_regressor(),
+        regressor_treated=nonlinear_regressor(),
+        bias_function=RidgeCV(),
+    )
+
+
+def get_roscar_mixed(n_crossfit_folds):
+    return ROSCARCATE(
+        propensity_score=propensity_score,
+        regressor_control=nonlinear_regressor(),
+        regressor_treated=nonlinear_regressor(),
+        bias_function_outcome=RidgeCV(),
+        bias_function_cate=RidgeCV(),
         crossfit_folds=n_crossfit_folds,
     )
 
@@ -239,6 +279,28 @@ def get_asaiee_nonlinear(n_crossfit_folds):
     )
 
 
+def get_oscar_nonlinear(n_crossfit_folds):
+    # print("WARNING: SHOULD BE CROSS-FITTED BUT NOT IMPLEMENTED")
+    return OSCARCATE(
+        propensity_score=propensity_score,
+        regressor_control=nonlinear_regressor(),
+        regressor_treated=nonlinear_regressor(),
+        bias_function=nonlinear_regressor(),
+    )
+
+
+def get_roscar_nonlinear(n_crossfit_folds):
+    # print("WARNING: SHOULD BE CROSS-FITTED BUT NOT IMPLEMENTED")
+    return ROSCARCATE(
+        propensity_score=propensity_score,
+        regressor_control=nonlinear_regressor(),
+        regressor_treated=nonlinear_regressor(),
+        bias_function_outcome=nonlinear_regressor(),
+        bias_function_cate=nonlinear_regressor(),
+        crossfit_folds=n_crossfit_folds,
+    )
+
+
 ########################
 # Other baselines
 ########################
@@ -273,6 +335,10 @@ def get_method(method_name: str, n_crossfit_folds=None):
         return get_ksp_linear_t(n_crossfit_folds)
     elif method_name == "KSPLinear_DR":
         return get_ksp_linear_dr(n_crossfit_folds)
+    elif method_name == "OSCARLinear":
+        return get_oscar_linear(n_crossfit_folds)
+    elif method_name == "ROSCARLinear":
+        return get_roscar_linear(n_crossfit_folds)
 
     elif method_name == "DRLearnerMixed":
         return get_drlearner_mixed(n_crossfit_folds)
@@ -286,6 +352,10 @@ def get_method(method_name: str, n_crossfit_folds=None):
         return get_asaiee_mixed(n_crossfit_folds)
     elif method_name == "KSPMixed_DR":
         return get_ksp_mixed_dr(n_crossfit_folds)
+    elif method_name == "OSCARMixed":
+        return get_oscar_mixed(n_crossfit_folds)
+    elif method_name == "ROSCARMixed":
+        return get_roscar_mixed(n_crossfit_folds)
 
     elif method_name == "DRLearnerNonlinear":
         return get_drlearner_nonlinear(n_crossfit_folds)
@@ -305,6 +375,11 @@ def get_method(method_name: str, n_crossfit_folds=None):
         return get_ksp_nonlinear_t(n_crossfit_folds)
     elif method_name == "KSPNonlinear_DR":
         return get_ksp_nonlinear_dr(n_crossfit_folds)
+    elif method_name == "OSCARNonlinear":
+        return get_oscar_nonlinear(n_crossfit_folds)
+    elif method_name == "ROSCARNonlinear":
+        return get_roscar_nonlinear(n_crossfit_folds)
+
     elif method_name == "DM":
         return get_dm(n_crossfit_folds)
     else:
