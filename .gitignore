@@ -4,5 +4,6 @@
 
 star_results/
 figures/
+results/
 
 *.cpython*
