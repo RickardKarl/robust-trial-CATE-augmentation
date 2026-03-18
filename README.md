@@ -1,6 +1,6 @@
 # Description
 
-Official implementation for paper **"Robust estimation of heterogeneous treatment effects in randomized trials leveraging external data"**
+Official implementation for paper **"Robust estimation of heterogeneous treatment effects in randomized trials leveraging external data"** accepted to AISTATS 2026.
 
 ## Directory Structure
 
